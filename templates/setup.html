@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 任务监控 — 密码设置</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="auth-page">
+<div class="auth-card">
+  <h1>AI 任务监控</h1>
+  <p class="subtitle">第一次使用，先设一个密码</p>
+  {% if error %}
+  <p class="error">{{ error }}</p>
+  {% endif %}
+  <form method="post">
+    <label>密码
+      <input type="password" name="password" placeholder="至少 6 位" autofocus required minlength="6">
+    </label>
+    <label>再输一遍
+      <input type="password" name="password2" placeholder="和上面一样" required>
+    </label>
+    <button type="submit">设好，进去</button>
+  </form>
+</div>
+</body>
+</html>

@@ -1,0 +1,12 @@
+{
+  "_说明": "app_id / app_secret 建议放同目录的 .env 文件（FEISHU_APP_ID=xxx、FEISHU_APP_SECRET=xxx），不要写进本文件，更不要提交到 git。本文件只放非敏感配置。",
+  "cwd": "~/.claude/claude-files",
+  "permission": "read",
+  "confirm_dangerous": true,
+  "timeout_seconds": 1800,
+  "allowed_dirs": ["~/.claude/claude-files"],
+  "allowed_user_ids": [],
+  "allowed_chat_ids": [],
+  "truncate_reply": false,
+  "reply_max_chars": 3000
+}

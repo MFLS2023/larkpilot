@@ -1,0 +1,12 @@
+{
+  "sources": [
+    {
+      "name": "Pi",
+      "engine": "pi",
+      "dir": "~/.pi/agent/sessions",
+      "glob": "**/*.jsonl",
+      "extractor": "envelope",
+      "can_run": true
+    }
+  ]
+}

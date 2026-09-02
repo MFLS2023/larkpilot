@@ -1,0 +1,25 @@
+name: tests
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    # 项目深度依赖 Windows（PowerShell 进程探测、路径分隔符、锁实现）
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: 安装依赖
+        run: pip install flask lark-oapi werkzeug
+      # CI 只跑不依赖外部环境的套件：
+      #   test_bridge / test_parallel 需要本机装 claude/codex CLI
+      #   test_loop / test_e2e 需要飞书应用凭据
+      # 完整清单见 README「测试」一节
+      - name: 解析器格式快照
+        run: python test_scanner_formats.py
+      - name: 会话锁
+        run: python test_lock.py
+      - name: 安全与权限
+        run: python test_security.py

@@ -1,0 +1,50 @@
+# ── 敏感文件：绝不入库 ──────────────────
+# 本机飞书配置：含个人目录白名单、可能含允许的聊天/用户 ID
+# （密钥本身在 .env，但这份也不该公开）
+bridge_config.json
+# 密码哈希 + session secret
+web_config.json
+# 飞书绑定关系（uid / chat id）与会话映射
+bridge_state.json
+bridge_auth.json
+# 运行时锁表与大门锁
+session_locks.json
+.locks.gate
+# 桥进程心跳（运行时状态）
+bridge_heartbeat.json
+# 全文搜索索引（可随时重建）
+session_index.db
+# 用户上传的图片
+uploads/
+
+# ── 日志（含 *_r_test_*.log 等测试日志）──
+*.log
+
+# ── 本机专用配置与启动脚本 ───────────────
+*.vbs
+*.bat
+*.bak-*
+.env
+.env.*
+
+# ── Python 运行产物 ─────────────────────
+__pycache__/
+*.pyc
+
+# ── 临时验证脚本与运行状态 ────────────────
+_tmp_*
+_tb.log
+_tl.log
+_tp.log
+_tw.log
+_tloop.log
+_test_loop_state.json
+_empty_mcp.json
+
+# ── 本机工具目录 ─────────────────────────
+.spec-workflow/
+_restart_web_task.ps1
+_restart_web.log
+clients.json
+hidden_sessions.json
+trash/

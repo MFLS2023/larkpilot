@@ -1,0 +1,11 @@
+{
+  "port": 8000,
+  "host": "0.0.0.0",
+  "password_hash": "",
+  "session_secret": "",
+  "cookie_days": 30,
+  "task_timeout": 1800,
+  "default_perm": "read",
+  "notify_feishu": true,
+  "debug": false
+}

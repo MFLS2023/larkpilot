@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LarkPilot</title>
+<link rel="stylesheet" href="/static/style.css?v=20260825b">
+<!-- htmx 已移除：全页用原生 fetch，这个 CDN 引入是早期遗留的死依赖 -->
+</head>
+<body>
+
+<!-- UI 线性图标（feather 风格，stroke 走 currentColor）。
+     品牌图标 i-claude / i-openai 在下方 detail 同款定义里，本页只用 UI 组 -->
+<svg style="display:none" xmlns="http://www.w3.org/2000/svg">
+  <symbol id="ui-refresh" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></symbol>
+  <symbol id="ui-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></symbol>
+  <symbol id="ui-eye" viewBox="0 0 24 24"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="ui-plus" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></symbol>
+  <symbol id="ui-claude" viewBox="0 0 24 24"><path d="m4.7144 15.9555 4.7174-2.6471.079-.2307-.079-.1275h-.2307l-.7893-.0486-2.6956-.0729-2.3375-.0971-2.2646-.1214-.5707-.1215-.5343-.7042.0546-.3522.4797-.3218.686.0608 1.5179.1032 2.2767.1578 1.6514.0972 2.4468.255h.3886l.0546-.1579-.1336-.0971-.1032-.0972L6.973 9.8356l-2.55-1.6879-1.3356-.9714-.7225-.4918-.3643-.4614-.1578-1.0078.6557-.7225.8803.0607.2246.0607.8925.686 1.9064 1.4754 2.4893 1.8336.3643.3035.1457-.1032.0182-.0728-.164-.2733-1.3539-2.4467-1.445-2.4893-.6435-1.032-.17-.6194c-.0607-.255-.1032-.4674-.1032-.7285L6.287.1335 6.6997 0l.9957.1336.419.3642.6192 1.4147 1.0018 2.2282 1.5543 3.0296.4553.8985.2429.8318.091.255h.1579v-.1457l.1275-1.706.2368-2.0947.2307-2.6957.0789-.7589.3764-.9107.7468-.4918.5828.2793.4797.686-.0668.4433-.2853 1.8517-.5586 2.9021-.3643 1.9429h.2125l.2429-.2429.9835-1.3053 1.6514-2.0643.7286-.8196.85-.9046.5464-.4311h1.0321l.759 1.1293-.34 1.1657-1.0625 1.3478-.8804 1.1414-1.2628 1.7-.7893 1.36.0729.1093.1882-.0183 2.8535-.607 1.5421-.2794 1.8396-.3157.8318.3886.091.3946-.3278.8075-1.967.4857-2.3072.4614-3.4364.8136-.0425.0304.0486.0607 1.5482.1457.6618.0364h1.621l3.0175.2247.7892.522.4736.6376-.079.4857-1.2142.6193-1.6393-.3886-3.825-.9107-1.3113-.3279h-.1822v.1093l1.0929 1.0686 2.0035 1.8092 2.5075 2.3314.1275.5768-.3218.4554-.34-.0486-2.2039-1.6575-.85-.7468-1.9246-1.621h-.1275v.17l.4432.6496 2.3436 3.5214.1214 1.0807-.17.3521-.6071.2125-.6679-.1214-1.3721-1.9246L14.38 17.959l-1.1414-1.9428-.1397.079-.674 7.2552-.3156.3703-.7286.2793-.6071-.4614-.3218-.7468.3218-1.4753.3886-1.9246.3157-1.53.2853-1.9004.17-.6314-.0121-.0425-.1397.0182-1.4328 1.9672-2.1796 2.9446-1.7243 1.8456-.4128.164-.7164-.3704.0667-.6618.4008-.5889 2.386-3.0357 1.4389-1.882.929-1.0868-.0062-.1579h-.0546l-6.3385 4.1164-1.1293.1457-.4857-.4554.0608-.7467.2307-.2429 1.9064-1.3114Z"/></symbol>
+  <symbol id="ui-openai" viewBox="0 0 24 24"><path d="M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.9894 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1686a.071.071 0 0 1 .038.052v5.5826a4.504 4.504 0 0 1-4.4945 4.4944zm-9.6607-4.1254a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1408-1.6464zM2.3408 7.8956a4.485 4.485 0 0 1 2.3655-1.9728V11.6a.7664.7664 0 0 0 .3879.6765l5.8144 3.3543-2.0201 1.1685a.0757.0757 0 0 1-.071 0l-4.8303-2.7865A4.504 4.504 0 0 1 2.3408 7.872zm16.5963 3.8558L13.1038 8.364 15.1192 7.2a.0757.0757 0 0 1 .071 0l4.8303 2.7913a4.4944 4.4944 0 0 1-.6765 8.1042v-5.6772a.79.79 0 0 0-.407-.667zm2.0107-3.0231l-.142-.0852-4.7735-2.7818a.7759.7759 0 0 0-.7854 0L9.409 9.2297V6.8974a.0662.0662 0 0 1 .0284-.0615l4.8303-2.7866a4.4992 4.4992 0 0 1 6.6802 4.66zM8.3065 12.863l-2.02-1.1638a.0804.0804 0 0 1-.038-.0567V6.0742a4.4992 4.4992 0 0 1 7.3757-3.4537l-.142.0805L8.704 5.459a.7948.7948 0 0 0-.3927.6813zm1.0976-2.3654l2.602-1.4998 2.6069 1.4998v2.9994l-2.5974 1.4997-2.6067-1.4997Z"/></symbol>
+</svg>
+
+<div class="topbar">
+  <span class="topbar-title">LarkPilot</span>
+  <div class="topbar-right">
+    <span id="refresh-status" class="refresh-status"></span>
+    <button class="btn-icon" onclick="toggleHidden()" title="已隐藏 / 回收站"><svg class="ic"><use href="#ui-eye"/></svg></button>
+    <button class="btn-icon" onclick="toggleSearch()" title="搜内容"><svg class="ic"><use href="#ui-search"/></svg></button>
+    <button class="btn-icon" onclick="openNewPanel()" title="新建对话"><svg class="ic"><use href="#ui-plus"/></svg></button>
+    <button class="btn-icon" onclick="loadSessions()" title="刷新"><svg class="ic"><use href="#ui-refresh"/></svg></button>
+    <a href="/logout" class="btn-icon logout-btn" title="退出登录">退出</a>
+  </div>
+</div>
+
+<!-- 新建对话面板 -->
+<div id="new-mask" class="mask" style="display:none">
+  <div class="panel">
+    <div class="panel-title">新对话</div>
+    <div class="engine-row">
+      <button class="engine-btn active" data-eng="claude" onclick="pickEngine('claude',this)"><svg class="bicon ic-claude"><use href="#ui-claude"/></svg>Claude</button>
+      <button class="engine-btn" data-eng="codex" onclick="pickEngine('codex',this)"><svg class="bicon ic-codex"><use href="#ui-openai"/></svg>Codex</button>
+      <button class="engine-btn" data-eng="pi" onclick="pickEngine('pi',this)"><span class="piglyph">π</span>Pi</button>
+    </div>
+    <!-- 工作目录：选项来自 allowed_dirs 白名单，落盘前服务端还会再校验 -->
+    <select id="new-cwd" class="panel-select"></select>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
+      <button class="mini-btn" id="new-attach-btn"
+        onclick="document.getElementById('new-img-input').click()">📎 附图</button>
+      <input type="file" id="new-img-input"
+        accept="image/*,.pdf,.txt,.log,.md,.csv,.json"
+        style="display:none" onchange="pickNewImage(this)">
+      <span id="new-img-hint" class="tok">可选：截图或文档（PDF/文本类）</span>
+    </div>
+    <textarea id="new-msg" placeholder="第一句话说什么…" rows="4"></textarea>
+    <div class="panel-row">
+      <button class="panel-btn ghost" onclick="closeNewPanel()">取消</button>
+      <button id="new-send" class="panel-btn primary" onclick="sendNew()">发 送</button>
+    </div>
+    <div id="new-status" class="panel-status"></div>
+  </div>
+</div>
+
+<div class="level-tabs">
+  <button class="tab active" data-level="recent" onclick="setLevel('recent', this)">最近</button>
+  <button class="tab" data-level="active" onclick="setLevel('active', this)">活跃</button>
+  <button class="tab" data-level="all" onclick="setLevel('all', this)">全部</button>
+</div>
+
+<!-- 飞书桥心跳灯：之前「手机发消息没反应」分不清电脑睡了/桥挂了/网络断了，
+     这个灯把黑箱打开。数据来自 bridge_heartbeat.json（桥每 20 秒写一次） -->
+<div id="bridge-status" class="bridge-status"></div>
+
+<!-- 内容搜索行：默认收起，🔍 展开。搜索期间暂停列表自动轮询，免得结果被刷掉 -->
+<div id="search-row" class="search-row" style="display:none">
+  <input id="search-q" placeholder="在所有会话内容里搜（≥3 字更准）…"
+    onkeydown="if(event.key==='Enter'){doSearch()}">
+  <button onclick="doSearch()">搜</button>
+  <button onclick="exitSearch()" title="退出搜索">✕</button>
+</div>
+
+<!-- 筛选条：平台 + 时间。选了天数就无视上面的标签（数据源自动换全量再按时间截）
+     平台那组是动态渲染的：后端把登记过的引擎列表发过来，挂新工具自动多一项 -->
+<div class="filter-bar">
+  <div class="filter-group" id="engine-chips"></div>
+  <div class="filter-group" id="days-chips">
+    <button class="chip active" data-days="0.5" onclick="pickDays('0.5', this)">12 小时</button>
+    <button class="chip" data-days="1" onclick="pickDays('1', this)">1 天</button>
+    <button class="chip" data-days="3" onclick="pickDays('3', this)">3 天</button>
+    <button class="chip" data-days="7" onclick="pickDays('7', this)">7 天</button>
+    <button class="chip" data-days="30" onclick="pickDays('30', this)">30 天</button>
+  </div>
+</div>
+
+<div id="session-list" class="session-list">
+  <div class="loading">加载中…</div>
+</div>
+
+<script>
+const LEVEL_DOT = {active: 'd-run', recent: 'd-rec', stale: ''};   // 状态点走 CSS 色类
+const STATUS_CN = {
+  running: '正在跑', done: '已完成', stalled: '没了下文',
+  aborted: '已手动中止', error: '出错', idle: '闲着'
+};
+const STATUS_CLASS = {
+  running: 'status-running', done: 'status-done',
+  stalled: 'status-warn', aborted: 'status-warn',
+  error: 'status-error', idle: ''
+};
+const CLIENT_ICON = {
+  'Pi':             '🟣',
+  'SDK/自动化':     '⚙',
+};
+
+// 平台品牌图标：SVG 路径内嵌在页首的 <symbol> 里，
+// 配色（#D4915D / #00A67E）抄自 cc-switch 数据库，跟 ccs 界面一致。
+// Claude 客户端和 Claude Code 共用 Anthropic 图标、靠文字区分
+// （ccs 里这两个条目也是同一个图标）；Pi 没有现成品牌图，用 π 字符顶上。
+const KIND_LABEL = {'claude': 'Claude 客户端', 'claude-desktop': 'Claude 客户端',
+                    'claude-code': 'Claude Code', 'codex': 'Codex', 'pi': 'Pi'};
+function brandIcon(kind) {
+  if (kind === 'claude' || kind === 'claude-desktop' || kind === 'claude-code')
+    return '<svg class="bicon ic-claude" aria-hidden="true"><use href="#ui-claude"/></svg>';
+  if (kind === 'codex') return '<svg class="bicon ic-codex" aria-hidden="true"><use href="#ui-openai"/></svg>';
+  if (kind === 'pi')    return '<span class="piglyph">π</span>';
+  const emoji = CLIENT_ICON[kind];
+  return emoji ? esc(emoji) + ' ' : '';
+}
+
+// 飞书桥心跳灯：age_sec 是心跳文件距今多少秒（桥每 20 秒写一次）
+function renderBridge(hb) {
+  const el = document.getElementById('bridge-status');
+  if (!el) return;
+  if (!hb || hb.age_sec == null) {
+    el.innerHTML = '<span class="status-error">🔴 飞书桥无心跳 —— 桥没在跑或已卡死，手机发消息不会有反应</span>';
+    return;
+  }
+  if (hb.age_sec > 60) {
+    el.innerHTML = '<span class="status-warn">🟡 桥心跳停在 ' + Math.max(1, Math.round(hb.age_sec / 60)) +
+      ' 分钟前 —— 桥可能卡住了</span>';
+    return;
+  }
+  el.innerHTML = hb.net_ok
+    ? '<span class="status-done">🟢 桥在线 · 到飞书网络正常</span>'
+    : '<span class="status-warn">🟠 桥在跑但到飞书的网络不通 —— 发消息可能没反应</span>';
+}
+
+function renderKindChips(kinds) {
+  const box = document.getElementById('engine-chips');
+  let html = '<button class="chip' + ((fKind === '') ? ' active' : '') +
+    '" data-kind="" onclick="pickKind(\'\', this)">平台·全</button>';
+  (kinds && kinds.length ? kinds : ['claude-desktop', 'claude-code', 'codex']).forEach(k => {
+    html += '<button class="chip' + ((fKind === k) ? ' active' : '') +
+      '" data-kind="' + esc(k) + '" onclick="pickKind(\'' + esc(k) + '\', this)">' +
+      brandIcon(k) + esc(KIND_LABEL[k] || k) + '</button>';
+  });
+  box.innerHTML = html;
+}
+
+// ── 页面顶层状态（集中放在最前面，别散落——之前声明行被编辑误删过一次，
+//    症状是列表永远停在「加载中…」，手机上毫无报错）──
+let currentLevel = 'recent';
+let searchMode = false;
+let hiddenMode = false;
+let timer = null;
+let lastCount = 0;
+
+// 筛选状态。存 localStorage 让下次打开还是上次的筛选（读不到就用默认）。
+// 时间默认 12 小时（2026-08-24 按你要求去掉了「跟随标签」，第一档固定 12h）
+let fKind = '';
+let fDays = '0.5';
+try {
+  fKind = localStorage.getItem('fb_kind') || '';
+  const savedDays = localStorage.getItem('fb_days');
+  if (savedDays) fDays = savedDays;      // 旧存的空值迁回默认 12 小时
+} catch (e) {}
+
+function applyChipActive() {
+  document.querySelectorAll('#engine-chips .chip').forEach(c =>
+    c.classList.toggle('active', (c.dataset.kind || '') === fKind));
+  document.querySelectorAll('#days-chips .chip').forEach(c =>
+    c.classList.toggle('active', (c.dataset.days || '') === fDays));
+}
+
+function pickKind(v, btn) {
+  fKind = v;
+  try { localStorage.setItem('fb_kind', v); } catch (e) {}
+  applyChipActive();
+  loadSessions();
+}
+
+function pickDays(v, btn) {
+  fDays = v;
+  try { localStorage.setItem('fb_days', v); } catch (e) {}
+  applyChipActive();
+  loadSessions();
+}
+
+function setLevel(lv, btn) {
+  currentLevel = lv;
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  loadSessions();
+}
+
+
+function toggleHidden() {
+  hiddenMode = !hiddenMode;
+  if (!hiddenMode) { loadSessions(); return; }
+  clearTimeout(timer);
+  renderHidden();
+}
+
+function renderHidden() {
+  const el = document.getElementById('session-list');
+  setRefreshStatus('已隐藏 / 回收站');
+  el.innerHTML = '<div class="loading">加载中…</div>';
+  fetch('/api/hidden')
+    .then(r => r.json())
+    .then(d => {
+      if (!hiddenMode) return;
+      const row = (sid, m, canTrash) =>
+        '<div class="session-row"><div class="session-header">' +
+        '<span class="session-title">' + esc(m.title || sid.slice(0, 8)) + '</span></div>' +
+        '<div class="session-meta" style="gap:10px">' +
+        (canTrash
+          ? '<button class="mini-btn" onclick="hsOp(\'unhide\',\'' + sid + '\')">恢复显示</button>' +
+            '<button class="mini-btn danger" onclick="hsOp(\'untrash\',\'' + sid + '\')">彻底删</button>'
+          : '<button class="mini-btn" onclick="hsOp(\'untrash\',\'' + sid + '\')">找回来</button>') +
+        '</div></div>';
+      const hids = Object.entries(d.hidden || {});
+      const trs = Object.entries(d.trashed || {});
+      let html = '';
+      if (hids.length)
+        html += '<div class="hidden-sec">— 隐藏中（文件原样保留）—</div>' +
+                hids.map(([s, m]) => row(s, m, true)).join('');
+      if (trs.length)
+        html += '<div class="hidden-sec">— 回收站（30 天后自动清空）—</div>' +
+                trs.map(([s, m]) => row(s, m, false)).join('');
+      el.innerHTML = html ||
+        '<div class="empty">没有隐藏或删除过的会话。<br>在会话详情页点 🙈 / 🗑 操作。</div>';
+    })
+    .catch(() => { el.innerHTML = '<div class="empty">加载失败</div>'; });
+}
+
+function hsOp(action, sid) {
+  fetch('/api/' + action, {method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({sid})})
+    .then(r => r.json())
+    .then(d => {
+      if (d.error) alert(d.error);
+      renderHidden();
+    });
+}
+
+function loadSessions() {
+  if (searchMode || hiddenMode) return;   // 搜索/隐藏视图不被轮询覆盖
+  setRefreshStatus('刷新中…');
+  let url = '/api/sessions?level=' + currentLevel;
+  if (fKind) url += '&kind=' + fKind;
+  if (fDays) url += '&days=' + fDays;
+  fetch(url)
+    .then(r => r.ok ? r.json() : Promise.reject(r.status))
+    .then(data => {
+      renderBridge(data.bridge);
+      renderKindChips(data.kinds);
+      renderList(data.sessions || [], data.health_bad || []);
+      lastCount = (data.sessions || []).filter(s => s.level === 'active').length;
+      setRefreshStatus('');
+      scheduleNext();
+    })
+    .catch(e => {
+      if (e === 401) location.href = '/login';
+      setRefreshStatus('刷新失败');
+      scheduleNext();
+    });
+}
+
+function toggleSearch() {
+  const row = document.getElementById('search-row');
+  row.style.display = (row.style.display === 'none') ? 'flex' : 'none';
+  if (row.style.display !== 'none') document.getElementById('search-q').focus();
+}
+
+function exitSearch() {
+  searchMode = false;
+  document.getElementById('search-row').style.display = 'none';
+  document.getElementById('search-q').value = '';
+  loadSessions();
+}
+
+function doSearch() {
+  const q = document.getElementById('search-q').value.trim();
+  if (!q) return;
+  searchMode = true;
+  clearTimeout(timer);
+  const el = document.getElementById('session-list');
+  el.innerHTML = '<div class="loading">搜索中…</div>';
+  setRefreshStatus('搜索中…');
+  fetch('/api/search?q=' + encodeURIComponent(q))
+    .then(r => r.ok ? r.json() : Promise.reject(r.status))
+    .then(d => {
+      setRefreshStatus('');
+      if (!searchMode) return;      // 用户已经退出搜索了
+      const rs = d.results || [];
+      el.innerHTML = rs.length ? rs.map(r =>
+        '<a class="session-row" href="/session/' + esc(r.sid) + '">' +
+          '<div class="session-header"><span class="dot">🔍</span>' +
+          '<span class="session-title">' + esc(r.title) + '</span></div>' +
+          '<div class="session-preview">' + esc(r.snippet) + '</div>' +
+          '<div class="session-meta"><span>最后活跃 ' + esc(r.when) + '</span></div>' +
+        '</a>').join('')
+        : '<div class="empty">没搜到内容含「' + esc(q) + '」的会话。<br>' +
+          '刚装好的头几分钟索引还在补历史，稍后再试。</div>';
+    })
+    .catch(() => { el.innerHTML = '<div class="empty">搜索失败，重试一次</div>'; });
+}
+
+function loadSessions() {
+  if (searchMode) return;           // 搜索结果页不被轮询覆盖
+  setRefreshStatus('刷新中…');
+  let url = '/api/sessions?level=' + currentLevel;
+  if (fKind) url += '&kind=' + fKind;
+  if (fDays) url += '&days=' + fDays;
+  fetch(url)
+    .then(r => r.ok ? r.json() : Promise.reject(r.status))
+    .then(data => {
+      renderBridge(data.bridge);
+      renderKindChips(data.kinds);
+      renderList(data.sessions || [], data.health_bad || []);
+      lastCount = (data.sessions || []).filter(s => s.level === 'active').length;
+      setRefreshStatus('');
+      scheduleNext();
+    })
+    .catch(e => {
+      if (e === 401) location.href = '/login';
+      setRefreshStatus('刷新失败');
+      scheduleNext();
+    });
+}
+
+function scheduleNext() {
+  clearTimeout(timer);
+  // 有活跃会话每 3 秒刷，否则 30 秒
+  const delay = lastCount > 0 ? 3000 : 30000;
+  timer = setTimeout(loadSessions, delay);
+}
+
+// 页面切到后台停止轮询，切回来立刻刷
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    clearTimeout(timer);
+  } else {
+    loadSessions();
+  }
+});
+
+function setRefreshStatus(msg) {
+  document.getElementById('refresh-status').textContent = msg;
+}
+
+function renderList(sessions, healthBad) {
+  const el = document.getElementById('session-list');
+  let html = '';
+  // 解析器自检报警：有最近的会话文件整份读不出消息 = 上游（多半是 Codex）
+  // 又改格式了。挂横幅提醒，别让人点开详情页看到空白还以为记录丢了。
+  if ((healthBad || []).length) {
+    html += '<div class="health-warn">⚠️ 有 ' + healthBad.length +
+      ' 个最近的会话文件用了不认识的格式，点进去会是空的 —— 记录没丢，是解析器跟不上新格式了。把这句话发给 Claude 就能修。</div>';
+  }
+  if (!sessions.length) {
+    el.innerHTML = html + '<div class="empty">没有会话。<br>发 /列表 在飞书里试试，或者切换上方的 Tab。</div>';
+    return;
+  }
+  html += sessions.map(s => {
+    const dot = LEVEL_DOT[s.level] || '';
+    const dotCls = dot ? ' ' + dot : '';
+    const st = STATUS_CN[s.status] || s.status;
+    const stClass = STATUS_CLASS[s.status] || '';
+    // 徽章用品牌图标（和筛选条同款），文字保留 Desktop/Code 的区分
+    const clientBadge = s.client ? ` <span class="badge">${brandIcon(s.engine)}${esc(s.client)}</span>` : '';
+    const lock = s.locked ? ' <span class="badge badge-warn">占用中</span>' : '';
+    const fresh = s.level === 'active' && (s.status === 'running' || s.status === 'done')
+      ? ' <span class="badge badge-new">新</span>' : '';
+    return `<a class="session-row" href="/session/${s.session_id}">
+      <div class="session-header">
+        <span class="dot${dotCls}"></span>
+        <span class="session-title">${esc(s.title)}</span>
+        <span class="session-time">${esc(s.last_time_ago)}</span>
+      </div>
+      <div class="session-meta">
+        <span class="${stClass}">${esc(st)}</span>${clientBadge}${lock}${fresh}
+        <span class="sep">·</span>
+        <span class="sid">${s.session_id.slice(0,8)}</span>
+      </div>
+      ${s.last_msg ? `<div class="session-preview">${esc(s.last_msg)}</div>` : ''}
+    </a>`;
+  }).join('');
+  el.innerHTML = html;
+}
+
+function esc(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── 新建对话 ────────────────────────────
+// 新对话不带任何历史，跑完拿到新 session_id 就跳过去。
+let newEngine = 'claude';
+let newTaskTimer = null;
+
+// 新对话的附图：与详情页同一套 /api/upload
+let newImagePath = null;
+
+function pickNewImage(inp) {
+  const f = inp.files && inp.files[0];
+  if (!f) return;
+  document.getElementById('new-img-hint').textContent = '上传中…';
+  const fd = new FormData();
+  fd.append('file', f);
+  fetch('/api/upload', {method: 'POST', body: fd})
+    .then(r => r.json())
+    .then(d => {
+      if (d.error) { alert(d.error); inp.value = ''; return; }
+      newImagePath = d.path;
+      document.getElementById('new-attach-btn').classList.add('attached');
+      document.getElementById('new-img-hint').textContent = '图片已就绪';
+    })
+    .catch(() => { document.getElementById('new-img-hint').textContent = '上传失败'; });
+}
+
+function clearNewImage() {
+  newImagePath = null;
+  document.getElementById('new-attach-btn').classList.remove('attached');
+  document.getElementById('new-img-hint').textContent = '可选：带一张截图';
+}
+
+function openNewPanel() {
+  document.getElementById('new-mask').style.display = 'flex';
+  document.getElementById('new-status').textContent = '';
+  document.getElementById('new-msg').value = '';
+  clearNewImage();
+  loadWorkdirs();
+}
+
+// 拉白名单目录填充下拉框；记住上次选的，还在列表里就保持
+function loadWorkdirs() {
+  const sel = document.getElementById('new-cwd');
+  const prev = sel.value;
+  fetch('/api/workdirs')
+    .then(r => r.ok ? r.json() : Promise.reject(0))
+    .then(data => {
+      const list = data.workdirs || [];
+      if (!list.length) { sel.innerHTML = '<option value="">（默认目录）</option>'; return; }
+      sel.innerHTML = list.map(d =>
+        '<option value="' + esc(d.path) + '">' + esc(d.label) + '</option>').join('');
+      if (prev && list.some(d => d.path === prev)) sel.value = prev;
+    })
+    .catch(() => { sel.innerHTML = '<option value="">（默认目录）</option>'; });
+}
+
+function closeNewPanel() {
+  clearTimeout(newTaskTimer);
+  document.getElementById('new-mask').style.display = 'none';
+}
+
+function pickEngine(e, btn) {
+  newEngine = e;
+  document.querySelectorAll('.engine-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+function sendNew() {
+  let msg = document.getElementById('new-msg').value.trim();
+  if (!msg && !newImagePath) { alert('先写第一句话（或附一张图/文档）'); return; }
+  if (newImagePath) {
+    const isImg = /\.(png|jpe?g|gif|webp)$/i.test(newImagePath);
+    const name = newImagePath.split(/[\\/]/).pop();
+    const ask = isImg ? '请先读这张图片' : '请先读取这个文件「' + name + '」的内容';
+    msg = (msg || (isImg ? '请看这张图片' : '请看这个文件')) +
+      '\n\n[用户同时发来一个附件，保存在 ' + newImagePath +
+      ' 。' + ask + '，再结合上面的消息回答。]';
+  }
+  const btn = document.getElementById('new-send');
+  btn.disabled = true;
+  document.getElementById('new-status').textContent = '发送中…';
+
+  fetch('/api/send', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({new: true, engine: newEngine, msg: msg,
+                          cwd: document.getElementById('new-cwd').value})
+  })
+  .then(r => r.json())
+  .then(d => {
+    if (d.error) {
+      alert(d.error);
+      btn.disabled = false;
+      document.getElementById('new-status').textContent = '';
+      return;
+    }
+    clearNewImage();
+    pollNewTask(d.task_id, 0, btn);
+  })
+  .catch(e => {
+    alert('发送失败：' + e);
+    btn.disabled = false;
+    document.getElementById('new-status').textContent = '';
+  });
+}
+
+function pollNewTask(tid, sec, btn) {
+  clearTimeout(newTaskTimer);
+  document.getElementById('new-status').textContent = '正在跑…（' + sec + ' 秒）';
+  newTaskTimer = setTimeout(() => {
+    fetch('/api/task/' + tid)
+      .then(r => r.json())
+      .then(data => {
+        if (data.status === 'done') {
+          btn.disabled = false;
+          document.getElementById('new-status').textContent = '';
+          if (data.error) { alert(data.error); return; }
+          const sid = (data.result || {}).session_id;
+          if (sid) { location.href = '/session/' + sid; }   // 直接进新会话
+        } else {
+          pollNewTask(tid, sec + 3, btn);
+        }
+      })
+      .catch(() => pollNewTask(tid, sec + 3, btn));
+  }, 3000);
+}
+
+// 启动：恢复上次的筛选，再拉数据
+applyChipActive();
+loadSessions();
+</script>
+</body>
+</html>

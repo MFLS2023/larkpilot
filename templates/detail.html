@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>会话详情</title>
+<link rel="stylesheet" href="/static/style.css?v=20260825b">
+<!-- markdown 渲染 + 消毒：已本地化到 static/vendor，断外网也照常渲染。
+     （早期走 unpkg CDN，和「私有网络自足」的定位矛盾，2026-08-25 改本地） -->
+<script src="/static/vendor/marked.min.js"></script>
+<script src="/static/vendor/purify.min.js"></script>
+</head>
+<body>
+
+<!-- UI 线性图标（与列表页同一套 feather 风格） -->
+<svg style="display:none" xmlns="http://www.w3.org/2000/svg">
+  <symbol id="ui-refresh" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></symbol>
+  <symbol id="ui-back" viewBox="0 0 24 24"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></symbol>
+  <symbol id="ui-hide" viewBox="0 0 24 24"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/><line x1="14.12" y1="14.12" x2="9.88" y2="9.88"/></symbol>
+  <symbol id="ui-trash" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></symbol>
+  <symbol id="ui-clip" viewBox="0 0 24 24"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></symbol>
+</svg>
+
+<div class="topbar">
+  <a href="/" class="btn-icon back-btn"><svg class="ic"><use href="#ui-back"/></svg></a>
+  <span class="topbar-title" id="page-title">会话详情</span>
+  <div class="topbar-right">
+    <span id="lock-badge"></span>
+    <button class="btn-icon" onclick="hideCurrent()" title="从列表隐藏（文件保留，可恢复）"><svg class="ic"><use href="#ui-hide"/></svg></button>
+    <button class="btn-icon" id="trash-btn" onclick="trashCurrent()" title="移入回收站（30 天内可找回）"><svg class="ic"><use href="#ui-trash"/></svg></button>
+    <button class="btn-icon" onclick="loadDetail()" title="刷新"><svg class="ic"><use href="#ui-refresh"/></svg></button>
+  </div>
+</div>
+
+<!-- 对话历史 -->
+<div id="turns-area" class="turns-area">
+  <div class="loading">加载中…</div>
+</div>
+
+<!-- 正在跑的提示 -->
+<div id="running-bar" class="running-bar" style="display:none">
+  <span class="spinner">⏳</span> <span id="running-msg">正在跑…</span>
+</div>
+
+<!-- 底部输入区 -->
+<div class="input-area" id="input-area">
+  <div class="perm-row">
+    <button class="perm-btn" data-perm="full" onclick="setPerm('full',this)">全开</button>
+    <button class="perm-btn" data-perm="write" onclick="setPerm('write',this)">改文件</button>
+    <button class="perm-btn active" data-perm="read" onclick="setPerm('read',this)">只读</button>
+    <button class="perm-btn" data-perm="chat" onclick="setPerm('chat',this)">聊天</button>
+  </div>
+  <div class="send-row">
+    <button class="attach-btn" id="attach-btn"
+      onclick="document.getElementById('img-input').click()" title="附带一张图片"><svg class="ic"><use href="#ui-clip"/></svg></button>
+    <input type="file" id="img-input"
+      accept="image/*,.pdf,.txt,.log,.md,.csv,.json"
+      style="display:none" onchange="pickImage(this)">
+    <textarea id="msg-input" placeholder="说点什么…（可先点📎选图）" rows="2"
+      onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMsg();}"></textarea>
+    <button id="send-btn" class="send-btn" onclick="sendMsg()">发</button>
+  </div>
+</div>
+
+<script>
+const SID = "{{ sid }}";
+let currentPerm = "read";   // 出厂默认只读；本机配置了 full 的话 loadDetail 会改过来
+let pollTimer = null;
+let taskId = null;
+let taskTimer = null;
+let isLocked = false;
+
+const ROLE_CN = {user: '你', assistant: 'Claude / Codex'};
+const ENGINE_TAG = {claude: '', codex: ' [Codex]', pi: ' [Pi]'};
+
+// markdown 渲染。AI 输出基本是 md，纯文本贴出来全是星号井号没法看。
+// DOMPurify 先消毒再上页面，防止会话内容里藏的脚本被执行；
+// CDN 没加载出来或解析炸了就退回原来的纯文本转义，宁可难看不白屏。
+function mdRender(s) {
+  try {
+    if (window.marked && window.DOMPurify) {
+      return DOMPurify.sanitize(marked.parse(String(s || '')));
+    }
+  } catch (e) {}
+  return esc(s);
+}
+
+// 贴底跟随：只有本来就看在最底下时，新消息才自动滚到底；
+// 用户往上翻历史时不去打扰。
+let stickBottom = true;
+document.getElementById('turns-area').addEventListener('scroll', function() {
+  const el = this;
+  stickBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+});
+
+function setPerm(p, btn) {
+  currentPerm = p;
+  document.querySelectorAll('.perm-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+// 把本机配置的默认档位同步到按钮高亮（服务端下发，出厂 read、本机可配 full）
+function applyDefaultPerm(p) {
+  if (!p) return;
+  currentPerm = p;
+  document.querySelectorAll('.perm-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.perm === p));
+}
+
+// token 数说人话：12345 -> 12.3k
+function fmtTok(n) {
+  if (n == null) return '?';
+  return n >= 10000 ? (n / 1000).toFixed(1).replace(/\.0$/, '') + 'k' : String(n);
+}
+
+function loadDetail() {
+  fetch('/api/sessions/' + SID)
+    .then(r => r.ok ? r.json() : (r.status === 401 ? (location.href='/login') : Promise.reject(r.status)))
+    .then(data => {
+      // 顶栏标题跟列表页同源（摘要 > 首句 > 项目名），不再光秃秃显示目录名
+      let titleHtml = esc((data.title || data.project || SID.slice(0,8)) + (ENGINE_TAG[data.engine] || ''));
+      const u = data.usage || {};
+      if (u.last_out != null) {
+        titleHtml += ' <span class="tok">↑' + fmtTok(u.last_in) + ' ↓' + fmtTok(u.last_out) + '</span>';
+        if (u.total_in != null) {
+          titleHtml += ' <span class="tok">累计 ↑' + fmtTok(u.total_in) + ' ↓' + fmtTok(u.total_out) + '</span>';
+        }
+      }
+      document.getElementById('page-title').innerHTML = titleHtml;
+      document.title = data.project || '会话详情';
+      isLocked = data.locked;
+      applyDefaultPerm(data.default_perm);
+      renderLockBadge(data);
+      renderTurns(data.turns || []);
+      setInputDisabled(data.locked);
+      scheduleRefresh(data);
+    })
+    .catch(() => {});
+}
+
+function renderLockBadge(data) {
+  const el = document.getElementById('lock-badge');
+  if (data.locked) {
+    const who = (data.lock_info || {}).who || '?';
+    el.innerHTML = `<span class="badge badge-warn">⏳${esc(who)}占用中</span>`;
+  } else {
+    el.innerHTML = '';
+  }
+}
+
+function renderTurns(turns) {
+  const el = document.getElementById('turns-area');
+  if (!turns.length) {
+    el.innerHTML = '<div class="empty">对话还是空的</div>';
+    return;
+  }
+  const html = turns.map(t => {
+    const isUser = t.role === 'user';
+    const ts = t.time ? new Date(t.time * 1000).toLocaleTimeString('zh-CN', {hour:'2-digit',minute:'2-digit'}) : '';
+    return `<div class="turn ${isUser ? 'turn-user' : 'turn-ai'}">
+      <div class="turn-header">
+        <span class="turn-role">${isUser ? '你' : 'AI'}</span>
+        ${ts ? `<span class="turn-time">${ts}</span>` : ''}
+      </div>
+      <div class="turn-text">${mdRender(t.text)}</div>
+    </div>`;
+  }).join('');
+  if (el.innerHTML === html) return;   // 内容没变就不重绘，免得闪一下还打乱滚动位置
+  el.innerHTML = html;
+  if (stickBottom) el.scrollTop = el.scrollHeight;   // 打开页面和有新消息时都停在最底下
+}
+
+function setInputDisabled(locked) {
+  const input = document.getElementById('msg-input');
+  const btn = document.getElementById('send-btn');
+  input.disabled = locked;
+  btn.disabled = locked;
+  input.placeholder = locked ? '会话正在被占用，等它跑完…' : '说点什么…';
+}
+
+function scheduleRefresh(data) {
+  clearTimeout(pollTimer);
+  if (taskId) return;   // 有任务在等结果，不要再轮询刷历史
+  // 如果会话正在运行（文件刚被写过），快一点刷
+  const fast = data.locked || !data.turns || !data.turns.length;
+  pollTimer = setTimeout(loadDetail, fast ? 3000 : 15000);
+}
+
+// 待发送的图片：选了先传服务器，落盘路径随下一条消息一起给引擎
+let pendingImagePath = null;
+
+function pickImage(inp) {
+  const f = inp.files && inp.files[0];
+  if (!f) return;
+  setRunningBar(true, '传图中…');
+  const fd = new FormData();
+  fd.append('file', f);
+  fetch('/api/upload', {method: 'POST', body: fd})
+    .then(r => r.json())
+    .then(d => {
+      setRunningBar(false);
+      if (d.error) { alert(d.error); inp.value = ''; return; }
+      pendingImagePath = d.path;
+      const btn = document.getElementById('attach-btn');
+      btn.classList.add('attached');          // 图标不变，变色表示已就绪
+      btn.title = '图片已就绪（再点可换）';
+    })
+    .catch(() => { setRunningBar(false); alert('上传失败，重试一次'); });
+}
+
+function clearPendingImage() {
+  pendingImagePath = null;
+  document.getElementById('attach-btn').classList.remove('attached');
+}
+
+function sendMsg() {
+  const input = document.getElementById('msg-input');
+  const msg = input.value.trim();
+  if (!msg && !pendingImagePath) return;
+  if (isLocked) { alert('会话正被占用，等它跑完再发'); return; }
+
+  // 附件路径拼进消息文本，引擎用自己的文件工具打开它
+  let fullMsg = msg;
+  if (pendingImagePath) {
+    const isImg = /\.(png|jpe?g|gif|webp)$/i.test(pendingImagePath);
+    const name = pendingImagePath.split(/[\\/]/).pop();
+    const ask = isImg ? '请先读这张图片' : '请先读取这个文件「' + name + '」的内容';
+    fullMsg = (msg || (isImg ? '请看这张图片' : '请看这个文件')) +
+      '\n\n[用户同时发来一个附件，保存在 ' + pendingImagePath +
+      ' 。' + ask + '，再结合上面的消息回答。]';
+  }
+
+  input.disabled = true;
+  document.getElementById('send-btn').disabled = true;
+  setRunningBar(true, '发送中…');
+
+  fetch('/api/send', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({sid: SID, msg: fullMsg, perm: currentPerm})
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.error) {
+      alert(data.error);
+      input.disabled = false;
+      document.getElementById('send-btn').disabled = false;
+      setRunningBar(false);
+      return;
+    }
+    input.value = '';
+    clearPendingImage();
+    taskId = data.task_id;
+    setRunningBar(true, '正在跑…（0 秒）');
+    pollTask(0);
+  })
+  .catch(e => {
+    alert('发送失败：' + e);
+    input.disabled = false;
+    document.getElementById('send-btn').disabled = false;
+    setRunningBar(false);
+  });
+}
+
+function pollTask(sec) {
+  clearTimeout(taskTimer);
+  setRunningBar(true, '正在跑…（%d 秒）'.replace('%d', sec));
+  taskTimer = setTimeout(() => {
+    fetch('/api/task/' + taskId)
+      .then(r => r.json())
+      .then(data => {
+        if (data.status === 'done') {
+          taskId = null;
+          setRunningBar(false);
+          document.getElementById('msg-input').disabled = false;
+          document.getElementById('send-btn').disabled = false;
+          loadDetail();   // 刷历史
+          // 权限拦截提示：非全开档位下引擎碰壁了，横幅指路
+          if ((data.result || {}).perm_hint && currentPerm !== 'full') {
+            const el = document.getElementById('turns-area');
+            if (el && !document.getElementById('perm-hint')) {
+              const tip = document.createElement('div');
+              tip.className = 'health-warn';
+              tip.id = 'perm-hint';
+              tip.textContent = '⚠️ 回复里似乎有动作被当前档位拦住了。把下面的权限条切到「全开」，把刚才那句话重发一次即可。';
+              el.insertBefore(tip, el.firstChild);
+            }
+          }
+        } else {
+          // 流式预览：claude 引擎跑的时候 partial 会一点点长出来，
+          // 取结尾一小段塞进提示条，等结果不用盯着一行干等
+          let line = '正在跑…（' + sec + ' 秒）';
+          const p = (data.partial || '').replace(/\s+/g, ' ').trim();
+          if (p) line += '　' + (p.length > 70 ? '…' : '') + p.slice(-70);
+          setRunningBar(true, line);
+          pollTask(sec + 3);
+        }
+      })
+      .catch(() => pollTask(sec + 3));
+  }, 3000);
+}
+
+function setRunningBar(show, msg) {
+  const bar = document.getElementById('running-bar');
+  bar.style.display = show ? 'flex' : 'none';
+  if (msg) document.getElementById('running-msg').textContent = msg;
+}
+
+// ── 隐藏 / 回收站 ─────────────────────────
+function hideCurrent() {
+  if (!confirm('从列表隐藏这个会话？文件原样保留，随时可在列表页 👁 里恢复。')) return;
+  fetch('/api/hide', {method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({sid: SID})})
+    .then(r => r.json())
+    .then(d => { if (d.error) alert(d.error); location.href = '/'; });
+}
+
+let trashArmed = false;
+function trashCurrent() {
+  const b = document.getElementById('trash-btn');
+  if (!trashArmed) {                       // 两段确认：第一次只是上膛
+    trashArmed = true;
+    b.classList.add('armed');
+    setRunningBar(true, '再点一次 🗑 确认移入回收站（30 天内可在列表页 👁 找回）');
+    setTimeout(() => {
+      trashArmed = false;
+      b.classList.remove('armed');
+      setRunningBar(false);
+    }, 6000);
+    return;
+  }
+  fetch('/api/trash', {method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({sid: SID})})
+    .then(r => r.json())
+    .then(d => {
+      if (d.error) { alert(d.error); trashArmed = false; b.classList.remove('armed'); return; }
+      alert('已移入回收站。30 天内可在列表页 👁 里找回。');
+      location.href = '/';
+    });
+}
+
+function esc(s) {
+  return String(s || '')
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/\n/g,'<br>');
+}
+
+loadDetail();
+</script>
+</body>
+</html>
