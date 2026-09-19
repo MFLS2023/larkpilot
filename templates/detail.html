@@ -71,7 +71,7 @@ let taskTimer = null;
 let isLocked = false;
 
 const ROLE_CN = {user: '你', assistant: 'Claude / Codex'};
-const ENGINE_TAG = {claude: '', codex: ' [Codex]', pi: ' [Pi]'};
+const ENGINE_TAG = {claude: '', codex: ' [Codex]', pi: ' [Pi]', zcode: ' [Zcode · 只读]'};
 
 // markdown 渲染。AI 输出基本是 md，纯文本贴出来全是星号井号没法看。
 // DOMPurify 先消毒再上页面，防止会话内容里藏的脚本被执行；
@@ -132,7 +132,13 @@ function loadDetail() {
       applyDefaultPerm(data.default_perm);
       renderLockBadge(data);
       renderTurns(data.turns || []);
-      setInputDisabled(data.locked);
+      const readOnly = data.can_run === false;
+      setInputDisabled(data.locked || readOnly);
+      document.getElementById('attach-btn').disabled = readOnly || data.locked;
+      document.getElementById('trash-btn').disabled = data.can_trash === false;
+      if (readOnly) {
+        document.getElementById('msg-input').placeholder = '此来源仅支持查看历史，暂不能发送任务';
+      }
       scheduleRefresh(data);
     })
     .catch(() => {});

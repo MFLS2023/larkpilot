@@ -225,12 +225,14 @@ def write_cfg(d):
 write_cfg({"cwd": ROOT})
 c = C.load_config()
 check("★ json 里没写 allowed_dirs 时自动补默认值（不是空列表）",
-      len(c.get("allowed_dirs") or []) >= 3, "%r" % c.get("allowed_dirs"))
+      bool(c.get("allowed_dirs")) and c["allowed_dirs"] == list(C.DEFAULT_ALLOWED_DIRS),
+      "%r" % c.get("allowed_dirs"))
 
 write_cfg({"allowed_dirs": [], "cwd": ROOT})
 c = C.load_config()
 check("★ allowed_dirs 写成空列表也补默认值（空=谁都能进，不能允许）",
-      len(c.get("allowed_dirs") or []) >= 3, "%r" % c.get("allowed_dirs"))
+      bool(c.get("allowed_dirs")) and c["allowed_dirs"] == list(C.DEFAULT_ALLOWED_DIRS),
+      "%r" % c.get("allowed_dirs"))
 
 write_cfg({"permission": "随便瞎写"})
 check("★ 档位写不认识的值退回 read（不是退回 full）",

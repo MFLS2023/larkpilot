@@ -57,16 +57,17 @@ def load_env(path=ENV_PATH):
     if not os.path.exists(path):
         return False
     try:
-        for raw in io.open(path, encoding="utf-8-sig"):
-            line = raw.strip()
-            if not line or line.startswith("#") or "=" not in line:
-                continue
-            k, v = line.split("=", 1)
-            k, v = k.strip(), v.strip()
-            if len(v) >= 2 and v[0] == v[-1] and v[0] in ("'", '"'):
-                v = v[1:-1]
-            if k and k not in os.environ:
-                os.environ[k] = v
+        with io.open(path, encoding="utf-8-sig") as stream:
+            for raw in stream:
+                line = raw.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                k, v = line.split("=", 1)
+                k, v = k.strip(), v.strip()
+                if len(v) >= 2 and v[0] == v[-1] and v[0] in ("'", '"'):
+                    v = v[1:-1]
+                if k and k not in os.environ:
+                    os.environ[k] = v
         return True
     except Exception:
         return False

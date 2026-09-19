@@ -43,6 +43,7 @@ _empty_mcp.json
 
 # ── 本机工具目录 ─────────────────────────
 .spec-workflow/
+.serena/
 _restart_web_task.ps1
 _restart_web.log
 clients.json

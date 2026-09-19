@@ -411,6 +411,8 @@ def load_extra_sources():
                 continue
             if not s.get("name") or not s.get("engine") or not s.get("dir"):
                 continue                     # 三要素不全的直接跳过
+            # 配置示例允许 ~，glob 不会替我们展开用户目录。
+            s["dir"] = os.path.expanduser(str(s["dir"]))
             s.setdefault("glob", os.path.join("**", "*.jsonl"))
             s.setdefault("extractor", "envelope")
             s.setdefault("can_run", False)
@@ -704,7 +706,11 @@ def scan_all(level=None):
         "recent"  🟢 + 🟡（列表页默认，511 个历史会话不能全铺出来）
         None/"all" 全都要
     """
-    all_s = scan_claude_sessions() + scan_codex_sessions() + scan_extra_sessions()
+    import zcode_sessions
+    zcode = zcode_sessions.scan()
+    for session in zcode:
+        session["level"] = _level_of(session["last_time"])
+    all_s = scan_claude_sessions() + scan_codex_sessions() + scan_extra_sessions() + zcode
 
     # ── 先算出每个项目名被几个会话占用，重名的不能只显示项目名 ──
     # 实测过：同一个目录下开 8 个 Codex 会话，全都叫 claude-files，
@@ -790,6 +796,10 @@ def get_session(sid, max_turns=30):
     返回 {"session_id","engine","project","turns":[{"role","text","time"}...]}
     找不到返回 None。max_turns 是「最多几轮」，一轮 = 你说一句 + 它回一句。
     """
+    if isinstance(sid, str) and sid.startswith("sess_"):
+        import zcode_sessions
+        return zcode_sessions.history(sid, max_turns)
+
     # 先在 Claude 那边找
     hits = glob.glob(os.path.join(CLAUDE_PROJECTS, "*", "%s.jsonl" % sid))
     if hits:
@@ -1017,6 +1027,9 @@ def _hidden_sids():
 
 def find_session_files(sid):
     """定位某个会话在磁盘上的全部文件（续接分叉可能一份多文件）。"""
+    # Zcode 多个会话共用一个数据库，绝不能把整库当作单会话移走。
+    if isinstance(sid, str) and sid.startswith("sess_"):
+        return []
     out = set(glob.glob(os.path.join(CLAUDE_PROJECTS, "*", "%s.jsonl" % sid)))
     out |= set(glob.glob(os.path.join(CODEX_SESSIONS, "*", "*", "*",
                                       "rollout-*%s.jsonl" % sid)))

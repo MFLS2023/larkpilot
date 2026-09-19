@@ -62,7 +62,8 @@ WEB_CONFIG_DEFAULTS = {
 def load_web_config():
     cfg = dict(WEB_CONFIG_DEFAULTS)
     try:
-        d = json.loads(io.open(WEB_CONFIG_PATH, encoding="utf-8-sig").read())
+        with io.open(WEB_CONFIG_PATH, encoding="utf-8-sig") as stream:
+            d = json.load(stream)
         if isinstance(d, dict):
             cfg.update(d)
     except Exception:
@@ -380,10 +381,8 @@ def api_sessions():
     # kind = 平台细分的筛选键。Claude 引擎下再按客户端拆开：
     # 桌面客户端和 Claude Code 是你眼里两个不同的东西，筛的时候要分开
     def _kind_of(s):
-        if s["engine"] == "pi":
-            return "pi"
-        if s["engine"] == "codex":
-            return "codex"
+        if s["engine"] != "claude":
+            return s["engine"]
         return "claude-desktop" if s.get("client") == "Claude Desktop" else "claude-code"
 
     for s in sessions:
@@ -401,6 +400,7 @@ def api_sessions():
             "session_id": s["session_id"],
             "engine": s["engine"],
             "client": s.get("client") or s["engine"],      # 新：哪个软件
+            "can_run": s.get("can_run", True) and s["engine"] in _supported_engines(),
             "title": s["title"],           # 线名 or 第一句话 or 项目名
             "project": s["project"],
             "first_msg": s.get("first_msg") or "",
@@ -424,14 +424,16 @@ def api_sessions():
     # 以后在 EXTRA_SOURCES 挂新工具，筛选条自动多一项，不用改模板
     kinds = ["claude-desktop", "claude-code", "codex"]
     kinds += [x["engine"] for x in S.EXTRA_SOURCES]
+    kinds = list(dict.fromkeys(kinds + ["zcode"]))
 
     # 飞书桥心跳：桥进程每 20 秒写一次 bridge_heartbeat.json。
     # 读不到 / 超过 60 秒没更新 = 桥没在跑或卡死了 —— 之前手机发消息没反应
     # 分不清原因，这个灯就是补那个黑箱的。
     hb_age, hb_net = None, None
     try:
-        hb = json.loads(io.open(os.path.join(HERE, "bridge_heartbeat.json"),
-                                encoding="utf-8-sig").read())
+        with io.open(os.path.join(HERE, "bridge_heartbeat.json"),
+                     encoding="utf-8-sig") as stream:
+            hb = json.load(stream)
         hb_age = int(time.time() - float(hb.get("ts") or 0))
         hb_net = bool(hb.get("net_ok"))
     except Exception:
@@ -473,6 +475,8 @@ def api_session_detail(sid):
         "locked": locked,
         "usage": usage,
         "lock_info": L.who_holds(sid) if locked else None,
+        "can_run": h.get("can_run", True) and h["engine"] in _supported_engines(),
+        "can_trash": h["engine"] != "zcode",
         # 告诉前端本机配置的默认档位，按钮初始高亮跟着它走
         "default_perm": (load_web_config().get("default_perm") or "read"),
     })
@@ -752,6 +756,9 @@ def api_send():
                or "read").lower()
     engine = str(body.get("engine") or "").strip().lower()
     is_new = str(body.get("new") or "").lower() in ("1", "true", "yes")
+    # 只读来源直接拒绝，不依赖可能隐藏、过期或读取失败的会话列表。
+    if sid.startswith("sess_") or engine == "zcode":
+        return jsonify({"error": "Zcode 当前仅支持查看历史，不能发送任务。"}), 403
     want_cwd = None         # 新建对话才用：想落哪个目录，is_new 分支里覆盖
 
     if is_new:
@@ -869,6 +876,8 @@ def api_task(tid):
 # ---------------------------------------------------------------------------
 # 辅助函数
 # ---------------------------------------------------------------------------
+
+
 
 def _engine_of(sid):
     """从 bridge_state 或 scanner 里推断这个会话用哪个引擎。"""
