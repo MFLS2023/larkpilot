@@ -29,14 +29,20 @@ def _enc(fn, wt, payload):
     return tag + payload
 
 
-def _step_payload(step_type, text, ts=1789740949):
-    """按实测字段号构造 steps.step_payload：1=类型 5.1.1=秒 19.2=用户文 20.3=助手文。"""
+def _step_payload(step_type, text, ts=1789740949, think=None):
+    """按实测字段号构造 steps.step_payload。
+
+    1=类型 5.1.1=秒 19.2=用户正文；助手 20.1=最终回复、20.3=思考摘要。
+    """
     body = _enc(1, 0, _enc_v(step_type))
     body += _enc(5, 2, _enc(1, 2, _enc(1, 0, _enc_v(ts))))
     if step_type == A.STEP_USER:
         body += _enc(19, 2, _enc(2, 2, text.encode("utf-8")))
-    else:
-        body += _enc(20, 2, _enc(3, 2, text.encode("utf-8")))
+        return body
+    if think:
+        body += _enc(20, 2, _enc(3, 2, think.encode("utf-8")))
+    if text:
+        body += _enc(20, 2, _enc(1, 2, text.encode("utf-8")))
     return body
 
 
@@ -69,8 +75,14 @@ class AntigravityTests(unittest.TestCase):
                        (A.STEP_USER, _step_payload(A.STEP_USER, "第一句", 1789740949)))
             db.execute("INSERT INTO steps VALUES(1, ?, ?)",
                        (132, b"\x0a\x0bcall_673737"))          # 工具调用：不该出现在对话里
+            # 纯思考 step（无 20.1 回复）→ 应作为折叠的 note 出现
             db.execute("INSERT INTO steps VALUES(2, ?, ?)",
-                       (A.STEP_ASSISTANT, _step_payload(A.STEP_ASSISTANT, "第一答", 1789740960)))
+                       (A.STEP_ASSISTANT, _step_payload(A.STEP_ASSISTANT, "", 1789740950,
+                                                        think="先查一下目录")))
+            # 思考 + 最终回复同 step → 思考在前、回复在后，都要出现
+            db.execute("INSERT INTO steps VALUES(3, ?, ?)",
+                       (A.STEP_ASSISTANT, _step_payload(A.STEP_ASSISTANT, "第一答",
+                                                        1789740960, think="想清楚了")))
         db.close()
 
     def _patch(self):
@@ -89,9 +101,15 @@ class AntigravityTests(unittest.TestCase):
     def test_history_text_order(self):
         with self._patch():
             data = A.history(UUID)
-        self.assertEqual([t["text"] for t in data["turns"]], ["第一句", "第一答"])
-        self.assertEqual([t["role"] for t in data["turns"]], ["user", "assistant"])
-        self.assertEqual(data["turns"][0]["time"], 1789740949)
+        turns = data["turns"]
+        # 思考标注 kind='note' 且默认折叠，正文回复不带 kind
+        self.assertEqual([(t["role"], t["text"], t.get("kind")) for t in turns], [
+            ("user", "第一句", None),
+            ("assistant", "先查一下目录", "note"),
+            ("assistant", "想清楚了", "note"),
+            ("assistant", "第一答", None),
+        ])
+        self.assertEqual(turns[0]["time"], 1789740949)
         self.assertFalse(data["can_run"])
 
     def test_is_managed_and_guards(self):

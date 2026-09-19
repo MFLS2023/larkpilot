@@ -245,6 +245,23 @@ button { cursor: pointer; border: none; background: none; color: inherit; font: 
   padding: 9px 12px;
 }
 
+/* Antigravity 思考摘要：原生 details 折叠，弱化显示不抢回复的戏 */
+.turn-note { margin: 2px 0; }
+.turn-note details > summary {
+  cursor: pointer; list-style: none;
+  font-size: .76rem; color: var(--mut);
+  padding: 3px 2px; user-select: none;
+}
+.turn-note details > summary::-webkit-details-marker { display: none; }
+.turn-note details > summary::before { content: '▸ '; }
+.turn-note details[open] > summary::before { content: '▾ '; }
+.turn-note details > summary:hover { color: var(--accent); }
+.turn-note .turn-text {
+  font-size: .82rem; color: var(--mut);
+  border-left: 2px solid var(--hair);
+  padding: 4px 12px; margin: 2px 0 6px;
+}
+
 /* Markdown */
 .turn-text p { margin: 0 0 .5em; }
 .turn-text p:last-child { margin-bottom: 0; }

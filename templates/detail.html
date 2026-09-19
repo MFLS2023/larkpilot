@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>会话详情</title>
-<link rel="stylesheet" href="/static/style.css?v=20260825b">
+<link rel="stylesheet" href="/static/style.css?v=20260919a">
 <!-- markdown 渲染 + 消毒：已本地化到 static/vendor，断外网也照常渲染。
      （早期走 unpkg CDN，和「私有网络自足」的定位矛盾，2026-08-25 改本地） -->
 <script src="/static/vendor/marked.min.js"></script>
@@ -164,6 +164,13 @@ function renderTurns(turns) {
   const html = turns.map(t => {
     const isUser = t.role === 'user';
     const ts = t.time ? new Date(t.time * 1000).toLocaleTimeString('zh-CN', {hour:'2-digit',minute:'2-digit'}) : '';
+    // Antigravity 的思考摘要：默认折叠，点开才展开，不跟回复正文混在一起
+    if (t.kind === 'note') {
+      return `<div class="turn turn-ai turn-note">
+        <details><summary>思考过程${ts ? ` <span class="turn-time">${ts}</span>` : ''}</summary>
+        <div class="turn-text">${mdRender(t.text)}</div></details>
+      </div>`;
+    }
     return `<div class="turn ${isUser ? 'turn-user' : 'turn-ai'}">
       <div class="turn-header">
         <span class="turn-role">${isUser ? '你' : 'AI'}</span>

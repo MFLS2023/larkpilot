@@ -199,14 +199,20 @@ def scan(path=None):
 
 
 def history(sid, max_turns=30):
-    """提取 user/assistant 可见文本；工具调用、合成内容一律跳过。"""
+    """提取 user/assistant 可见内容。
+
+    实测字段号（无官方 schema，改版会静默取空）：
+      用户 step(14)：19.2 = 正文
+      助手 step(15)：20.1(备份 20.8) = 最终回复正文；20.3 = 思考摘要
+    思考标 kind='note'，前端折叠展示；工具调用(20.7.x)一律跳过。
+    """
     if not isinstance(sid, str) or not re.match(r"^[0-9a-fA-F-]{36}$", sid):
         return None
     db_path = os.path.join(CONV_DIR, "%s.db" % sid)
     if not os.path.isfile(db_path):
         return None
     try:
-        want = max(1, min(int(max_turns), 200))
+        want = max(1, min(int(max_turns), 200)) * 2
         turns = []
         with _connect(db_path) as conn:
             rows = conn.execute(
@@ -218,15 +224,19 @@ def history(sid, max_turns=30):
             blob = row["step_payload"] or b""
             if row["step_type"] == STEP_USER:
                 text = _text_at(blob, 19, 2)
-                role = "user"
-            else:
-                text = _text_at(blob, 20, 3)
-                role = "assistant"
-            if not text:
+                if text:
+                    turns.append({"role": "user", "text": text[:4000],
+                                  "time": _step_time(blob) or 0.0})
                 continue
-            turns.append({"role": role, "text": text[:4000],
-                          "time": _step_time(blob) or 0.0})
-            if len(turns) >= want * 2:
+            ts = _step_time(blob) or 0.0
+            reply = _text_at(blob, 20, 1) or _text_at(blob, 20, 8)
+            think = _text_at(blob, 20, 3)
+            if think and think != reply:
+                turns.append({"role": "assistant", "kind": "note",
+                              "text": think[:4000], "time": ts})
+            if reply:
+                turns.append({"role": "assistant", "text": reply[:4000], "time": ts})
+            if len(turns) >= want:
                 break
         if not turns:
             return None
