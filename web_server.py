@@ -30,6 +30,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import session_lock as L
 import session_scanner as S
+import antigravity_sessions
 import config as CFG        # 目录白名单 / 工作目录校验
 
 try:
@@ -424,7 +425,7 @@ def api_sessions():
     # 以后在 EXTRA_SOURCES 挂新工具，筛选条自动多一项，不用改模板
     kinds = ["claude-desktop", "claude-code", "codex"]
     kinds += [x["engine"] for x in S.EXTRA_SOURCES]
-    kinds = list(dict.fromkeys(kinds + ["zcode"]))
+    kinds = list(dict.fromkeys(kinds + ["zcode", "antigravity"]))
 
     # 飞书桥心跳：桥进程每 20 秒写一次 bridge_heartbeat.json。
     # 读不到 / 超过 60 秒没更新 = 桥没在跑或卡死了 —— 之前手机发消息没反应
@@ -476,7 +477,7 @@ def api_session_detail(sid):
         "usage": usage,
         "lock_info": L.who_holds(sid) if locked else None,
         "can_run": h.get("can_run", True) and h["engine"] in _supported_engines(),
-        "can_trash": h["engine"] != "zcode",
+        "can_trash": h["engine"] not in ("zcode", "antigravity"),
         # 告诉前端本机配置的默认档位，按钮初始高亮跟着它走
         "default_perm": (load_web_config().get("default_perm") or "read"),
     })
@@ -759,6 +760,9 @@ def api_send():
     # 只读来源直接拒绝，不依赖可能隐藏、过期或读取失败的会话列表。
     if sid.startswith("sess_") or engine == "zcode":
         return jsonify({"error": "Zcode 当前仅支持查看历史，不能发送任务。"}), 403
+    # Antigravity 会话号和 Claude 一样是 uuid，得查摘要库认领，不能光看前缀
+    if engine == "antigravity" or antigravity_sessions.is_managed(sid):
+        return jsonify({"error": "Antigravity 当前仅支持查看历史，不能发送任务。"}), 403
     want_cwd = None         # 新建对话才用：想落哪个目录，is_new 分支里覆盖
 
     if is_new:

@@ -110,7 +110,7 @@ if ss:
         check("字段 %s 存在" % f, f in s0, "没有这个字段，有的是 %s" % list(s0))
     check("★ level 值合法", s0["level"] in ("active", "recent", "stale"),
           "level=%r" % s0["level"])
-    check("★ engine 值合法", s0["engine"] in ("claude", "codex"),
+    check("★ engine 值合法", s0["engine"] in ("claude", "codex", "pi", "zcode", "antigravity"),
           "engine=%r" % s0["engine"])
     check("★ title 不空", bool(s0["title"]))
     check("★ recent 里没有 stale 会话",

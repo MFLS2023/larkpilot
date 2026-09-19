@@ -71,7 +71,8 @@ let taskTimer = null;
 let isLocked = false;
 
 const ROLE_CN = {user: '你', assistant: 'Claude / Codex'};
-const ENGINE_TAG = {claude: '', codex: ' [Codex]', pi: ' [Pi]', zcode: ' [Zcode · 只读]'};
+const ENGINE_TAG = {claude: '', codex: ' [Codex]', pi: ' [Pi]', zcode: ' [Zcode · 只读]',
+                    antigravity: ' [Antigravity · 只读]'};
 
 // markdown 渲染。AI 输出基本是 md，纯文本贴出来全是星号井号没法看。
 // DOMPurify 先消毒再上页面，防止会话内容里藏的脚本被执行；

@@ -75,10 +75,24 @@
 - 支持隐藏，不支持删除：多个会话共用同一个数据库，不能把整库移入回收站。
 - 暂不支持 Zcode 全文搜索、token 统计、真实运行状态判断。
 - 数据库缺失、损坏或结构不兼容时返回空结果，尚无专用故障横幅。
-- Antigravity 尚未接入。升级代码后须重启服务才能在现有页面生效。
 
 离线验证：`python -m unittest test_zcode_sessions test_zcode_http test_extra_sources -v`。
 测试仅使用临时数据库和本机临时 HTTP 服务，不调用 AI 或发送飞书消息。
+
+### Antigravity（只读接入）
+
+自动读取本机 `~/.gemini/antigravity/`：`conversation_summaries.db` 提供会话清单
+（37+ 个，标题/预览/时间），每个会话的内容在其独立数据库
+`conversations/<uuid>.db` 里，以只读模式逐条打开。
+
+- 对话内容是私有 protobuf 编码，靠裸 wire-format 解析提取用户/助手可见文本；
+  上游改字段号会导致取不到文本（给空列表），不会报错崩溃。
+- 不展示工具调用和推理内容；不能新建或续接会话，网页和服务端均拒绝发送。
+- 会话号和 Claude 一样是 uuid：详情页先查 Antigravity 摘要库认领，认不下的
+  才落回 Claude 的查找；删除出口双层封死（前端禁用 + 服务端按摘要库认领拒绝）。
+- 支持隐藏，不支持删除；暂不支持全文搜索、token 统计、真实运行状态判断。
+
+离线验证：`python -m unittest test_antigravity_sessions -v`（6 项）。
 
 ### 接入其他 AI 工具（多客户端配置化）
 

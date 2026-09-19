@@ -665,6 +665,8 @@ def run_engine(engine, prompt, cfg, session_id=None, on_progress=None):
     eng = str(engine).lower()
     if eng == "zcode":
         return ("Zcode 当前仅支持查看历史，续接尚未验证，不能发送任务。", session_id, True)
+    if eng == "antigravity":
+        return ("Antigravity 当前仅支持查看历史，不能发送任务。", session_id, True)
     if eng == "codex":
         return run_codex(prompt, cfg, session_id)
     runner = RUNNERS.get(eng)

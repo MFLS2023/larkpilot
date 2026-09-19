@@ -116,12 +116,14 @@ const CLIENT_ICON = {
 // Claude 客户端和 Claude Code 共用 Anthropic 图标、靠文字区分
 // （ccs 里这两个条目也是同一个图标）；Pi 没有现成品牌图，用 π 字符顶上。
 const KIND_LABEL = {'claude': 'Claude 客户端', 'claude-desktop': 'Claude 客户端',
-                    'claude-code': 'Claude Code', 'codex': 'Codex', 'pi': 'Pi', 'zcode': 'Zcode'};
+                    'claude-code': 'Claude Code', 'codex': 'Codex', 'pi': 'Pi', 'zcode': 'Zcode',
+                    'antigravity': 'Antigravity'};
 function brandIcon(kind) {
   if (kind === 'claude' || kind === 'claude-desktop' || kind === 'claude-code')
     return '<svg class="bicon ic-claude" aria-hidden="true"><use href="#ui-claude"/></svg>';
   if (kind === 'codex') return '<svg class="bicon ic-codex" aria-hidden="true"><use href="#ui-openai"/></svg>';
   if (kind === 'pi')    return '<span class="piglyph">π</span>';
+  if (kind === 'antigravity') return '<span class="piglyph">✦</span>';
   const emoji = CLIENT_ICON[kind];
   return emoji ? esc(emoji) + ' ' : '';
 }

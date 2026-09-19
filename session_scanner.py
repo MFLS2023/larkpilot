@@ -710,7 +710,11 @@ def scan_all(level=None):
     zcode = zcode_sessions.scan()
     for session in zcode:
         session["level"] = _level_of(session["last_time"])
-    all_s = scan_claude_sessions() + scan_codex_sessions() + scan_extra_sessions() + zcode
+    import antigravity_sessions
+    agy = antigravity_sessions.scan()
+    for session in agy:
+        session["level"] = _level_of(session["last_time"])
+    all_s = scan_claude_sessions() + scan_codex_sessions() + scan_extra_sessions() + zcode + agy
 
     # ── 先算出每个项目名被几个会话占用，重名的不能只显示项目名 ──
     # 实测过：同一个目录下开 8 个 Codex 会话，全都叫 claude-files，
@@ -799,6 +803,14 @@ def get_session(sid, max_turns=30):
     if isinstance(sid, str) and sid.startswith("sess_"):
         import zcode_sessions
         return zcode_sessions.history(sid, max_turns)
+
+    # Antigravity 的会话号和 Claude 一样是 uuid 格式，先查它的摘要库：
+    # 命中就走 antigravity，没命中才落到下面的 Claude/Codex 查找
+    if isinstance(sid, str) and re.fullmatch(r"[0-9a-fA-F-]{36}", sid or ""):
+        import antigravity_sessions
+        hit = antigravity_sessions.history(sid, max_turns)
+        if hit:
+            return hit
 
     # 先在 Claude 那边找
     hits = glob.glob(os.path.join(CLAUDE_PROJECTS, "*", "%s.jsonl" % sid))
@@ -1030,6 +1042,15 @@ def find_session_files(sid):
     # Zcode 多个会话共用一个数据库，绝不能把整库当作单会话移走。
     if isinstance(sid, str) and sid.startswith("sess_"):
         return []
+    # Antigravity 每会话一个库，但 v1 定位只读，回收站入口已在前端禁用，
+    # 这里再兜一层：uuid 先查摘要库，是它的会话就不给删除出口。
+    if isinstance(sid, str) and re.fullmatch(r"[0-9a-fA-F-]{36}", sid or ""):
+        try:
+            import antigravity_sessions
+            if antigravity_sessions.is_managed(sid):
+                return []
+        except Exception:
+            return []
     out = set(glob.glob(os.path.join(CLAUDE_PROJECTS, "*", "%s.jsonl" % sid)))
     out |= set(glob.glob(os.path.join(CODEX_SESSIONS, "*", "*", "*",
                                       "rollout-*%s.jsonl" % sid)))
