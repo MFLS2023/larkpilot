@@ -12,6 +12,9 @@ session_locks.json
 .locks.gate
 # 桥进程心跳（运行时状态）
 bridge_heartbeat.json
+# 公网隧道状态与日志
+tunnel_state.json
+cloudflared.exe
 # 全文搜索索引（可随时重建）
 session_index.db
 # 用户上传的图片

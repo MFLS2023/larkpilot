@@ -340,7 +340,7 @@ if SENT:
     check("★ 回复里有会话信息（有序号）",
           "1. 🟢" in reply or "1. 🟡" in reply or "1. ⚪" in reply,
           "开头是：%r" % reply[:60])
-    check("★ 回复里有引擎名", "Claude" in reply or "Codex" in reply,
+    check("★ 回复里有引擎名", any(eng in reply for eng in ("Claude", "Codex", "Zcode", "Antigravity", "Pi")),
           "回复：%r" % reply[:200])
 
 # 清理

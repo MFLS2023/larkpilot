@@ -56,6 +56,7 @@ WEB_CONFIG_DEFAULTS = {
     "default_perm": "read",
     # 网页派的任务完成后往飞书绑定群推一条。不想被打扰就改成 false。
     "notify_feishu": True,
+    "enable_tunnel": True,
     "debug": False,
 }
 
@@ -966,15 +967,16 @@ def main():
             time.sleep(60)
     threading.Thread(target=_index_loop, daemon=True).start()
 
-    # 找本机局域网 IP，打印出来告诉用户手机上该访问哪个地址
-    import socket
-    try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("8.8.8.8", 80))
-        local_ip = s.getsockname()[0]
-        s.close()
-    except Exception:
-        local_ip = "127.0.0.1"
+    # ── 公网安全隧道（免配路由器/异网访问）：后台拉起 ──
+    if cfg.get("enable_tunnel", True):
+        def _tunnel_loop():
+            try:
+                import tunnel
+                runner = tunnel.TunnelRunner(port=port)
+                runner.start()
+            except Exception:
+                pass
+        threading.Thread(target=_tunnel_loop, daemon=True).start()
 
     print("=" * 56)
     print("AI 会话监控 Web 服务器")
@@ -982,10 +984,19 @@ def main():
     if not cfg.get("password_hash"):
         print("第一次启动，打开页面后会引导你设密码。")
     print()
-    print("  本机：    http://127.0.0.1:%d" % port)
-    print("  局域网：  http://%s:%d" % (local_ip, port))
+    print("  本机访问：  http://127.0.0.1:%d" % port)
+    try:
+        import tunnel
+        info = tunnel.get_network_info(port=port)
+        if info.get("lan_ip"):
+            print("  局域网访问：http://%s:%d" % (info["lan_ip"], port))
+        if info.get("tailscale_ip"):
+            print("  Tailscale:  http://%s:%d" % (info["tailscale_ip"], port))
+    except Exception:
+        pass
     print()
-    print("手机和电脑在同一个 Wi-Fi 下，用局域网地址。")
+    print("手机在异网（5G流量/校园网隔离）请通过公网加密隧道访问。")
+    print("飞书发送 /网址 可随时获取最新手机访问链接。")
     print("Ctrl+C 停止。")
     print("=" * 56)
 
