@@ -97,6 +97,7 @@ CMD_HELP = ("/帮助", "/help", "帮助")
 CMD_NEW = ("/新会话", "/new", "新会话")
 CMD_STATUS = ("/状态", "/status", "状态")
 CMD_LIST = ("/列表", "/list", "列表")
+CMD_URL = ("/网址", "/url", "/web", "/ip", "网址", "ip")
 CMD_YES = ("确认", "/确认", "yes", "y", "确定")
 CMD_NO = ("取消", "/取消", "no", "n", "算了")
 
@@ -700,6 +701,7 @@ HELP_TEXT = """飞书遥控 Claude / Codex — 能回什么
   /claude 你的任务  换回 claude
 
 其它命令
+  /网址   获取手机远程控制台链接（公网隧道 + 局域网地址）
   /状态   看当前档位、线、工作目录
   /帮助   这段话
 
@@ -1245,6 +1247,15 @@ def handle_text(client, chat_id, user_id, text, cfg):
     # ---- 内置命令 ----
     if low in [c.lower() for c in CMD_HELP]:
         send_msg(client, chat_id, HELP_TEXT)
+        return
+
+    if low in [c.lower() for c in CMD_URL]:
+        try:
+            import tunnel
+            info = tunnel.get_network_info()
+            send_msg(client, chat_id, info["summary_text"])
+        except Exception as e:
+            send_msg(client, chat_id, "查询手机地址失败：%s" % e)
         return
 
     act, arg = parse_line_cmd(text)

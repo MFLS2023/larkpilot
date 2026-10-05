@@ -51,6 +51,12 @@ def _save(d):
     with io.open(AUTH_PATH, "w", encoding="utf-8") as f:
         f.write(json.dumps(d, ensure_ascii=False, indent=2))
 
+
+def load_auth():
+    """读取绑定关系数据。"""
+    with _LOCK:
+        return _load()
+
 # 日志里要抹掉的东西：长数字串（绑定码、手机号）、长 token 串。
 # 审计日志的定位是「谁在什么时候动了什么」，不是「他说了什么」——
 # 记原文就迟早把密钥记进去：拒绝日志带用户原文，而打错的绑定码正是原文。

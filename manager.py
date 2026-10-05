@@ -35,13 +35,41 @@ SERVICES = {
 
 
 def find_pids(script):
-    """找出正在跑某个脚本的 python 进程 PID 列表。
+    """找出正在跑某个脚本的 python/pythonw 进程 PID 列表。
 
-    用 PowerShell 查 Win32_Process 的 CommandLine —— 任务管理器同款数据源。
-    正则里 feishu-bridge 前缀保证不误伤别的 python 程序；
-    目录和脚本名之间的分隔符是反斜杠，用 [\\\\/] 字符类匹配
-    （写成 \\. 是错的 —— 那匹配的是点号，实测一个都抓不到）。
+    优先使用 psutil，结合脚本文件名与进程 CWD 精准匹配，避免 PowerShell 字符转义问题。
     """
+    res = []
+    script_name = script.lower()
+    here_abs = os.path.abspath(HERE).lower()
+
+    try:
+        import psutil
+        for p in psutil.process_iter(['pid', 'name', 'cmdline']):
+            try:
+                name = (p.info.get('name') or '').lower()
+                if 'python' in name:
+                    cmdline = p.info.get('cmdline') or []
+                    has_script = any(
+                        script_name == os.path.basename(arg).lower() or script_name in arg.lower()
+                        for arg in cmdline
+                    )
+                    if has_script:
+                        try:
+                            if os.path.abspath(p.cwd()).lower() == here_abs:
+                                res.append(p.info['pid'])
+                                continue
+                        except Exception:
+                            pass
+                        cmd_str = ' '.join(cmdline).lower()
+                        if 'feishu-bridge' in cmd_str:
+                            res.append(p.info['pid'])
+            except Exception:
+                pass
+        return res
+    except Exception:
+        pass
+
     cmd = ("Get-CimInstance Win32_Process | Where-Object {"
            "$_.Name -match 'python' -and $_.CommandLine -match "
            "'feishu-bridge[\\\\/]%s'} | ForEach-Object { \"$($_.ProcessId)\" }" % script)
@@ -93,6 +121,10 @@ def port_ok(port):
 
 
 def cmd_start(target):
+    python_bin = sys.executable.replace("python.exe", "pythonw.exe")
+    if not os.path.exists(python_bin):
+        python_bin = sys.executable
+
     for name in SERVICES:
         if target not in ("all", name):
             continue
@@ -101,12 +133,14 @@ def cmd_start(target):
             print("  [%s] 已在跑（PID %s），跳过" % (name, ",".join(map(str, pids))))
             continue
         logp = os.path.join(HERE, SERVICES[name]["log"])
-        DETACHED = 0x00000008  # DETACHED_PROCESS：关掉终端也不死
-        with io.open(logp, "a", encoding="utf-8") as lf:
-            subprocess.Popen(
-                [sys.executable, os.path.join(HERE, SERVICES[name]["script"])],
-                cwd=HERE, stdout=lf, stderr=subprocess.STDOUT,
-                creationflags=DETACHED)
+        CREATE_NEW_PROCESS_GROUP = 0x00000200
+        DETACHED_PROCESS = 0x00000008
+        flags = CREATE_NEW_PROCESS_GROUP | DETACHED_PROCESS
+        lf = io.open(logp, "a", encoding="utf-8")
+        subprocess.Popen(
+            [python_bin, os.path.join(HERE, SERVICES[name]["script"])],
+            cwd=HERE, stdout=lf, stderr=subprocess.STDOUT,
+            creationflags=flags)
         print("  [%s] 已启动，日志 -> %s" % (name, SERVICES[name]["log"]))
     time.sleep(3)
 
@@ -144,6 +178,15 @@ def cmd_status():
         print("桥心跳：%d 秒前（到飞书网络%s）" % (age, "通" if net else "不通"))
     busy = locks_snapshot()
     print("锁表：%s" % ("空" if not busy else busy))
+    try:
+        import tunnel
+        state = tunnel.read_tunnel_state()
+        if state.get("status") == "online" and state.get("url"):
+            print("公网隧道：%s" % state["url"])
+        else:
+            print("公网隧道：%s" % ("未建立或启动中" if port_ok(web_port()) else "未运行"))
+    except Exception:
+        pass
 
 
 def cmd_doctor():
@@ -205,6 +248,14 @@ def cmd_doctor():
     port = web_port()
     item("网页端口 %d 响应" % port, port_ok(port),
          "python manager.py restart web")
+
+    try:
+        import tunnel
+        cf_bin = tunnel.find_cloudflared_bin()
+        item("cloudflared 穿透组件已就绪", bool(cf_bin),
+             "未检测到 cloudflared.exe，可通过 winget install Cloudflare.cloudflared 安装")
+    except Exception as e:
+        item("cloudflared 穿透组件检测", False, str(e))
 
     print("\n结论：%s" % ("一切正常" if ok else "有项要处理，见上面的 → 提示"))
     return 0 if ok else 1
